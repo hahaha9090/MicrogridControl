@@ -1,44 +1,125 @@
-# 日前电价预测代码基线
+# 日前电价概率预测
 
-版本：`0.1.0`。本仓库当前保存已有电价预测代码，供后续研究使用。
+当前版本：`0.1.0`。
 
-本版本保留原始 PefCodeBench 的点预测、分位数回归、Normal、JohnsonSU、StudentT 五种 DNN，以及 QRA、CP、CQR 和在线共形校准。已经弃用的 VICQR、DMACC、派生版本和相关论文实验工具已从活动代码中移除。
+本项目用于复现和整理日前电价预测实验：先通过神经网络预测未来一天的电价，再使用共形校准等方法生成预测区间，并评估区间覆盖率和预测误差。
 
-## 目录
+当前代码保留原始电价预测基线、七个市场的数据、实验配置和已保存的预测结果。已放弃的 VICQR、DMACC 及其派生实验代码已从活动版本中清除。后续微电网控制研究尚未开始。
 
-- `tools/`：数据处理、模型、共形校准、预测区间和统计评估。
-- `run_recalibration.py`：滚动训练与日前预测。
-- `exec_qra_cp.py`：集合预测与 QRA、CP、CQR、在线校准后处理。
-- `results_analysis.py`：覆盖率检验、评分、图表和结果表。
-- `data/datasets/`：德国和意大利七个市场的原始基线数据。
-- `experiments/tasks/`：原始配置、已调参数及保存的基线预测结果。
-- `tests/`：基础方法回归测试和五种 DNN 的小规模训练测试。
+## 保留的方法
 
-## 环境与验证
+### 神经网络预测模型
 
-本版本在 Python 3.8.10、TensorFlow 2.13.0、TensorFlow Probability 0.21.0、NumPy 1.23.5、pandas 1.5.3 下验证。
+| 模型 | 代码中的名称 | 用途 |
+|---|---|---|
+| 点预测神经网络 | `point-DNN` | 预测电价的单一数值，供后续区间构造使用 |
+| 分位数回归神经网络 | `QR-DNN` | 直接预测多个电价分位数 |
+| 正态分布神经网络 | `N-DNN` | 预测正态分布参数，再生成分位数 |
+| 约翰逊 SU 分布神经网络 | `JSU-DNN` | 使用可表达偏度和厚尾的概率分布 |
+| 学生 t 分布神经网络 | `STU-DNN` | 使用厚尾概率分布描述电价不确定性 |
+
+### 区间构造与校准
+
+- **分位数回归平均（QRA）**：组合多个点预测，生成分位数预测。
+- **共形预测（CP）**：利用历史预测误差构造预测区间。
+- **共形化分位数回归（CQR）**：对已有分位数区间进行校准。
+- **在线共形校准（OCQR）**：根据历史覆盖误差持续调整区间。
+
+## 项目结构
+
+| 文件或目录 | 内容 |
+|---|---|
+| `tools/` | 数据处理、模型训练、区间校准及统计评估工具 |
+| `data/datasets/` | 德国及意大利七个市场的基线数据 |
+| `experiments/tasks/` | 实验配置、已调参数及保存的预测结果 |
+| `run_recalibration.py` | 滚动训练与日前预测入口 |
+| `exec_qra_cp.py` | 预测结果聚合与区间校准入口 |
+| `results_analysis.py` | 预测误差、区间评分、覆盖率检验和图表分析入口 |
+| `tests/` | 数值方法与小规模模型训练测试 |
+| `requirements.txt` | 运行依赖及版本 |
+| `VERSION`、`CHANGELOG.md` | 当前版本号和更新记录 |
+
+## 环境配置
+
+已验证的环境为 Python 3.8.10、TensorFlow 2.13.0、TensorFlow Probability 0.21.0、NumPy 1.23.5 和 pandas 1.5.3。完整直接依赖见 `requirements.txt`。
+
+在项目根目录执行：
 
 ```powershell
 conda create -n price_baseline python=3.8.10
 conda activate price_baseline
 python -m pip install -r requirements.txt
+```
+
+## 运行流程
+
+### 1. 训练并生成预测
+
+在 `run_recalibration.py` 的 `main()` 中设置：
+
+- `PF_task_name`：需要预测的市场，例如 `DE_price`。
+- `setups_to_experiment`：需要运行的模型。
+- `runs_id`：各集合成员的实验运行编号。
+- `hyper_mode`：`load_tuned` 加载已有参数；`optuna_tuner` 重新搜索参数。
+
+```powershell
+python run_recalibration.py
+```
+
+重新训练前，请复制已有实验运行目录并使用新编号，以保留原始结果。
+
+### 2. 聚合预测并执行校准
+
+在 `exec_qra_cp.py` 的 `main()` 中配置市场列表、模型列表、运行编号和集合成员数量，使其与前一步一致。
+
+```powershell
+python exec_qra_cp.py
+```
+
+聚合结果保存于 `experiments/tasks/<市场>/<运行编号>_aggr_results.p`。
+
+### 3. 分析预测效果
+
+在 `results_analysis.py` 的 `main()` 中选择市场和运行编号。
+
+```powershell
+python results_analysis.py
+```
+
+分析内容包括平均绝对误差、分位数损失、区间覆盖率、Winkler 区间评分、Kupiec 覆盖率检验及模型之间的预测精度比较。
+
+三个入口仅在直接运行时执行实验，导入模块不会触发训练或改写结果。全部运行命令均应在项目根目录执行。
+
+## 验证情况
+
+```powershell
 python -m unittest discover -s tests -v
 ```
 
-请从仓库根目录运行上述命令。测试包含真实模型的单轮训练，通常需等待一段时间。
+当前已通过 14 项测试，覆盖基础数值方法、集合后处理、实验配置，以及五种神经网络的单轮训练、预测和评估。七个市场的数据和保存结果均可正常加载。
 
-## 原有实验流程
+本次没有重新执行七市场的完整滚动训练。小规模运行验证与历史预测效果复核应分别理解。
 
-1. 在 `run_recalibration.py` 的 `main()` 中设置市场、模型和运行编号，然后运行 `python run_recalibration.py`。
-2. 在 `exec_qra_cp.py` 的 `main()` 中设置对应运行编号，然后运行 `python exec_qra_cp.py`。
-3. 在 `results_analysis.py` 的 `main()` 中选择市场和运行编号，然后运行 `python results_analysis.py`。
+## 已保存结果的效果概览
 
-重新训练前请复制实验运行目录并使用新运行编号，以保留原始预测结果。三个入口在直接运行时执行实验；导入它们不会触发训练或改写结果。
+下表基于七个市场已有预测文件，对各市场等权平均；预测区间的目标覆盖率为 **80%**。
 
-本次验证覆盖基本数值方法、配置与数据加载、集合后处理，以及五种 DNN 的单轮训练和预测。未重新执行七个市场的完整滚动训练；仓库中的基线预测结果为原始保存结果。
+| 方法 | 实际覆盖率 | 平均区间宽度 | Winkler 评分 |
+|---|---:|---:|---:|
+| 原始分位数回归神经网络 | 74.04% | 16.12 | 28.10 |
+| 加共形化分位数校准 | 76.69% | 17.08 | 27.61 |
+| 加在线共形校准 | 78.47% | 17.81 | 27.51 |
 
-`.worktrees/` 是本地历史分支的独立工作目录，已排除在当前版本的提交范围之外。
+Winkler 评分越低越好。在线校准使覆盖率更接近目标，同时增加了区间宽度。综合四种目标覆盖率，各市场平均 Winkler 评分的相对改善再取等权平均，约为 **1.13%**，七个市场均有改善。
+
+这些指标来自保存的历史结果：德国市场为 2019 年 6 月至 2020 年 12 月，意大利市场为 2018 年 8 月至 2019 年 8 月。此次仅做快速复核，未进行统计显著性检验。
+
+## 本地历史目录
+
+`.worktrees/` 保存本地历史分支的独立工作目录，已排除在当前版本的提交范围之外。运行缓存和临时模型权重也由 `.gitignore` 排除。
 
 ## 来源与许可
 
-保留原始作者署名及 `LICENSE`。基础代码用于复现 Brusaferri、Ballarino、Grossi 和 Laurini 的论文：[On-line conformalized neural networks ensembles for probabilistic forecasting of day-ahead electricity prices](https://arxiv.org/abs/2404.02722)。部分统计与在线校准工具的来源和许可见各文件头部。
+基础代码来自原始 PefCodeBench，用于复现 Brusaferri、Ballarino、Grossi 和 Laurini 的论文：[《用于日前电价概率预测的在线共形化神经网络集成》](https://arxiv.org/abs/2404.02722)。
+
+本项目保留原始作者署名及 `LICENSE`。部分统计检验和在线校准工具的来源与许可见对应文件头部；使用或分发时请保留这些声明。
