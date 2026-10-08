@@ -1,50 +1,44 @@
-# PefCodeBench
+# 日前电价预测代码基线
 
-Codebase to reproduce the experiments performed in the paper (pre-print, under review):
+版本：`0.1.0`。本仓库当前保存已有电价预测代码，供后续研究使用。
 
-- Brusaferri, A., Ballarino, A., Grossi, L., & Laurini, F. (2024). On-line conformalized neural networks ensembles for probabilistic forecasting of day-ahead electricity prices, https://arxiv.org/abs/2404.02722
+本版本保留原始 PefCodeBench 的点预测、分位数回归、Normal、JohnsonSU、StudentT 五种 DNN，以及 QRA、CP、CQR 和在线共形校准。已经弃用的 VICQR、DMACC、派生版本和相关论文实验工具已从活动代码中移除。
 
----
+## 目录
 
-### Getting started
+- `tools/`：数据处理、模型、共形校准、预测区间和统计评估。
+- `run_recalibration.py`：滚动训练与日前预测。
+- `exec_qra_cp.py`：集合预测与 QRA、CP、CQR、在线校准后处理。
+- `results_analysis.py`：覆盖率检验、评分、图表和结果表。
+- `data/datasets/`：德国和意大利七个市场的原始基线数据。
+- `experiments/tasks/`：原始配置、已调参数及保存的基线预测结果。
+- `tests/`：基础方法回归测试和五种 DNN 的小规模训练测试。
 
-The results of the experiments are stored as pickle files within the <code>experiments/task</code> folder, 
-aggregated by <code>regions-> methods-> recalibration</code> runs. 
+## 环境与验证
 
-Note: in the code we used 'DE' to label the German market while in the paper we employed 'GE' since 'DE' was already employed to label Deep Ensembles.
+本版本在 Python 3.8.10、TensorFlow 2.13.0、TensorFlow Probability 0.21.0、NumPy 1.23.5、pandas 1.5.3 下验证。
 
-The employed packages versions are stored in the <code>requirements.txt</code> file (Python 3.8.10). Besides, the code of DM-tests, Kupiec tests, Distributional NNs and Conformal PI are built upon https://github.com/jeslago/epftoolbox, https://github.com/rafa-rod/vartests, https://github.com/gmarcjasz/distributionalnn and https://github.com/aangelopoulos/conformal-time-series respectively.  
+```powershell
+conda create -n price_baseline python=3.8.10
+conda activate price_baseline
+python -m pip install -r requirements.txt
+python -m unittest discover -s tests -v
+```
 
-The script <code>results_analysis.py</code> contains the functions to obtain the plots/tables in the *Results* section of the paper from the stored pickle.
+请从仓库根目录运行上述命令。测试包含真实模型的单轮训练，通常需等待一段时间。
 
-To execute the recalibration experiments from scratch (i.e., models re-training), open the <code>run_recalibration.py</code> script,
-select the dataset to execute in the <code>PF_task_name</code> variable and run the script.
-Specific local minima reached by the training algorithm may lead to fluctuations in the test predictions (e.g., QR vs JSU vs Stu). 
-Still, the implemented Conformal Prediction based techniques are expected to improve the hourly calibration of the backbone models across the different settings. 
+## 原有实验流程
 
-The <code>run_recalibration.py</code> script will store the experiments results in the related <code>results</code> subfolders.
-Create a copy of the <code>recalib_opt_grid_1_(1-4)</code> folders by defining a new name (e.g., <code>my_recalib_opt_grid_1_(1-4)</code>) before running the experiments 
-to keep the original experiments results, otherwise they will be updated during each run of the script.
+1. 在 `run_recalibration.py` 的 `main()` 中设置市场、模型和运行编号，然后运行 `python run_recalibration.py`。
+2. 在 `exec_qra_cp.py` 的 `main()` 中设置对应运行编号，然后运行 `python exec_qra_cp.py`。
+3. 在 `results_analysis.py` 的 `main()` 中选择市场和运行编号，然后运行 `python results_analysis.py`。
 
-Keep the variable <code>hyper_mode</code> set to  <code>'load_tuned'</code> to load the stored hyperparameters values.
-Set it to <code>'optuna_tuner'</code> for executing also hyperparameter search from scratch.
+重新训练前请复制实验运行目录并使用新运行编号，以保留原始预测结果。三个入口在直接运行时执行实验；导入它们不会触发训练或改写结果。
 
-Once the recalibration runs are completed, run the <code>exec_qra_cp.py</code> script 
-to execute the post-processing routines (i.e., Quantile Regression Averaging and Conformal Prediction).
+本次验证覆盖基本数值方法、配置与数据加载、集合后处理，以及五种 DNN 的单轮训练和预测。未重新执行七个市场的完整滚动训练；仓库中的基线预测结果为原始保存结果。
 
-If you created your own experimental copy, assign the chosen name to the <code>run_id</code> variable within both <code>run_recalibration.py</code>, <code>exec_qra_cp.py</code> and  <code>results_analysis.py</code> 
+`.worktrees/` 是本地历史分支的独立工作目录，已排除在当前版本的提交范围之外。
 
----
+## 来源与许可
 
-### Citation
-
-If you use this code in your publication, please cite our paper:
-https://arxiv.org/abs/2404.02722
-
-      @misc{brusaferri2024online,
-      title={On-line conformalized neural networks ensembles for probabilistic forecasting of day-ahead electricity prices}, 
-      author={Alessandro Brusaferri and Andrea Ballarino and Luigi Grossi and Fabrizio Laurini},
-      year={2024},
-      eprint={2404.02722},
-      archivePrefix={arXiv},
-      primaryClass={cs.LG}}
+保留原始作者署名及 `LICENSE`。基础代码用于复现 Brusaferri、Ballarino、Grossi 和 Laurini 的论文：[On-line conformalized neural networks ensembles for probabilistic forecasting of day-ahead electricity prices](https://arxiv.org/abs/2404.02722)。部分统计与在线校准工具的来源和许可见各文件头部。

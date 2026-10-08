@@ -40,3 +40,10 @@ missing_pdf_*.ris
 test_one_with_pdf.ris
 zotero_pdf_attachment_audit*.json
 zotero_pdf_attachment_audit*.md
+
+# Local checkouts and generated runtime files
+.worktrees/
+CodexCache/
+.venv/
+tmp_checkpoints/
+outputs/
